@@ -6,7 +6,12 @@ from parse_replay import parse_replay
 # Configure logging (reuse similar settings as in parse_replay.py)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-API_ENDPOINT = "http://your-betting-app.example.com/api/replays"  # Update with your real API endpoint
+# In client.py
+from config import load_config
+
+config = load_config()
+API_ENDPOINT = config.get("api_endpoint", "http://your-betting-app.example.com/api/replays")
+
 
 def send_stats_to_backend(stats):
     """
