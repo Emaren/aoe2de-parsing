@@ -1,0 +1,3 @@
+[console_scripts]
+aoe2client = client:process_replay
+mgz = mgz.cli:main
