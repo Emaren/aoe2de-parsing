@@ -46,20 +46,25 @@ function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(remainder / 60);
   const secs = remainder % 60;
 
+  const hourStr = hours === 1 ? "1 hour" : `${hours} hours`;
+  const minStr = minutes === 1 ? "1 minute" : `${minutes} minutes`;
+  const secStr = secs === 1 ? "1 second" : `${secs} seconds`;
+
   if (hours > 0 && minutes > 0 && secs > 0) {
-    return `${hours} hours ${minutes} minutes ${secs} seconds`;
+    return `${hourStr} ${minStr} ${secStr}`;
   } else if (hours > 0 && minutes > 0) {
-    return `${hours} hours ${minutes} minutes`;
+    return `${hourStr} ${minStr}`;
   } else if (hours > 0) {
-    return `${hours} hours`;
+    return hourStr;
   } else if (minutes > 0 && secs > 0) {
-    return `${minutes} minutes ${secs} seconds`;
+    return `${minStr} ${secStr}`;
   } else if (minutes > 0) {
-    return `${minutes} minutes`;
+    return minStr;
   } else {
-    return `${secs} seconds`;
+    return secStr;
   }
 }
+
 
 const GameStatsPage = () => {
   const router = useRouter();
@@ -118,8 +123,11 @@ const GameStatsPage = () => {
           return;
         }
 
-        // Sort newest (highest id) first => "Latest Match"
-        validGames.sort((a, b) => b.id - a.id);
+        // Sort games by timestamp (newest first)
+        validGames.sort((a, b) => {
+          return new Date(b.timestamp).valueOf() - new Date(a.timestamp).valueOf();
+        });
+
 
         setGames(validGames);
         setLoading(false);

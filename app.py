@@ -43,7 +43,8 @@ class GameStats(db.Model):
     duration = db.Column(db.Integer)
     winner = db.Column(db.String(100))
     players = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
+    timestamp = db.Column(db.DateTime, nullable=False)  # ✅ Change to required field
+
 
 # Ensure tables exist on startup
 with app.app_context():
@@ -67,6 +68,26 @@ def handle_exception(e):
 # ------------------------------------------------------------------------------
 # Replay parsing logic (using mgz.header + mgz.summary)
 # ------------------------------------------------------------------------------
+import re
+from datetime import datetime
+
+def extract_timestamp_from_filename(filename):
+    """
+    Extract timestamp from an AoE2 replay filename.
+    Example: "MP Replay v101.103.2359.0 @2025.03.14 202116 (1).aoe2record"
+    """
+    match = re.search(r"@(\d{4}\.\d{2}\.\d{2}) (\d{6})", filename)
+    if match:
+        date_part, time_part = match.groups()
+        formatted_date = date_part.replace(".", "-")  # Convert to YYYY-MM-DD
+        formatted_time = f"{time_part[:2]}:{time_part[2:4]}:{time_part[4:]}"  # Convert HHMMSS to HH:MM:SS
+        try:
+            return datetime.strptime(f"{formatted_date} {formatted_time}", "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return datetime.utcnow()  # Fallback if parsing fails
+    return datetime.utcnow()  # Fallback if no timestamp found
+
+
 def parse_replay(replay_path):
     """Parse a .aoe2record file using mgz.header + mgz.summary."""
     if not os.path.exists(replay_path):
@@ -75,22 +96,19 @@ def parse_replay(replay_path):
 
     try:
         with open(replay_path, "rb") as f:
-            # Step 1: parse header
             h = header.parse_stream(f)
-            # Step 2: re-seek to start, parse summary
             f.seek(0)
             match_summary = summary.Summary(f)
 
-            # mgz.summary returns a float for get_duration(), so cast to int
-            duration_seconds = int(match_summary.get_duration())
+            duration_seconds = int(match_summary.get_duration() / 1000)
+            game_type_str = str(match_summary.get_settings().get("type", "Unknown"))
 
-            # mgz often returns game type as a tuple => convert to string
-            raw_game_type = match_summary.get_settings().get("type", "Unknown")
-            game_type_str = str(raw_game_type)
+            # ✅ Extract timestamp from filename
+            match_start_time = extract_timestamp_from_filename(os.path.basename(replay_path))
 
             stats = {
                 "replay_file": replay_path,
-                "game_version": str(h.version),  # e.g. "Version.DE"
+                "game_version": str(h.version),
                 "map": {
                     "name": match_summary.get_map().get("name", "Unknown"),
                     "size": match_summary.get_map().get("size", "Unknown")
@@ -98,16 +116,15 @@ def parse_replay(replay_path):
                 "game_type": game_type_str,
                 "duration": duration_seconds,
                 "players": [],
-                "winner": "Unknown"
+                "winner": "Unknown",
+                "timestamp": match_start_time  # ✅ Correct match start time
             }
 
-            # Loop players from summary
             for p in match_summary.get_players():
                 player_info = {
                     "name": p.get("name", "Unknown"),
                     "civilization": p.get("civilization", "Unknown"),
                     "winner": p.get("winner", False),
-                    "score": p.get("score", 0),
                     "military_score": p.get("military", {}).get("score", 0),
                     "economy_score": p.get("economy", {}).get("score", 0),
                     "technology_score": p.get("technology", {}).get("score", 0),
@@ -126,6 +143,8 @@ def parse_replay(replay_path):
         logging.error(f"❌ Error parsing replay: {e}", exc_info=True)
         return None
 
+
+
 # ------------------------------------------------------------------------------
 # POST /api/parse_replay
 # ------------------------------------------------------------------------------
@@ -139,18 +158,15 @@ def parse_new_replay():
 
     replay_path = str(pathlib.Path(replay_path).expanduser().resolve())
 
-    # Check if replay is already in DB
     existing = GameStats.query.filter_by(replay_file=replay_path).first()
     if existing:
         logging.info(f"⚠️ Replay already in DB: {replay_path}")
         return jsonify({"message": "Replay already in database."}), 200
 
-    # Attempt parse
     parsed_data = parse_replay(replay_path)
     if not parsed_data:
         return jsonify({"error": "Failed to parse replay"}), 500
 
-    # Insert into DB
     new_game = GameStats(
         replay_file=parsed_data["replay_file"],
         game_version=parsed_data["game_version"],
@@ -159,6 +175,7 @@ def parse_new_replay():
         duration=parsed_data["duration"],
         winner=parsed_data["winner"],
         players=json.dumps(parsed_data["players"]),
+        timestamp=parsed_data["timestamp"],  # ✅ Use actual match timestamp
     )
 
     db.session.add(new_game)
@@ -170,6 +187,7 @@ def parse_new_replay():
         return jsonify({"error": "Failed to insert replay into DB"}), 500
 
     return jsonify({"message": "Replay parsed and stored successfully!"}), 200
+
 
 # ------------------------------------------------------------------------------
 # GET /api/game_stats

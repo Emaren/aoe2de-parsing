@@ -75,16 +75,16 @@ def parse_replay(file_path):
     processed_replays[file_path] = {"status": "processed"}
     save_processed_replays()
 
-def wait_for_stable_file(file_path, stable_seconds=30):
+def wait_for_stable_file(file_path, stable_seconds=30, verification_seconds=20):
     """
-    Wait until the replay file has not changed size for `stable_seconds`.
-    Then call parse_replay() exactly once.
+    Ensures the file is stable by checking twice before parsing.
     """
     last_size = -1
     stable_time = 0
     check_interval = 1
 
-    while True:
+    # First Stability Check
+    while stable_time < stable_seconds:
         if not os.path.exists(file_path):
             logging.warning(f"⚠️ File disappeared before parsing: {file_path}")
             return
@@ -94,14 +94,21 @@ def wait_for_stable_file(file_path, stable_seconds=30):
             stable_time += check_interval
         else:
             stable_time = 0
-            last_size = current_size
-
-        # Once file size hasn’t changed for stable_seconds, parse
-        if stable_time >= stable_seconds:
-            parse_replay(file_path)
-            return
+            last_size = current_size = os.path.getsize(file_path)
 
         time.sleep(check_interval)
+
+    logging.info(f"🕒 Initial stability detected for file: {file_path}. Verifying again...")
+
+    # Verification Phase
+    time.sleep(20)  # Wait extra time for certainty
+    new_size = os.path.getsize(file_path)
+    if new_size == last_size:
+        logging.info(f"✅ File confirmed stable, parsing now: {file_path}")
+        parse_replay(file_path)
+    else:
+        logging.warning(f"⚠️ File size changed after verification. Restarting stability check.")
+        wait_for_stable_file(file_path, stable_seconds)
 
 # ---------------------------------------------------------------------------------------
 # SINGLE-THREADED QUEUE TO LIMIT CONCURRENCY
@@ -116,7 +123,7 @@ def parse_worker():
         file_path = parse_queue.get()
         if file_path is None:  # Stop signal
             break
-        wait_for_stable_file(file_path, stable_seconds=5)
+        wait_for_stable_file(file_path, stable_seconds=60)
         parse_queue.task_done()
 
 # Start the parse worker in the background
@@ -126,18 +133,20 @@ worker_thread.start()
 # ---------------------------------------------------------------------------------------
 # WATCHDOG EVENT HANDLER
 # ---------------------------------------------------------------------------------------
+import re
+
 class ReplayEventHandler(FileSystemEventHandler):
-    """
-    On creation of a .aoe2record file, enqueue a parse task to the parse_queue.
-    (We skip on_modified to avoid repeated parse attempts.)
-    """
+    FINAL_REPLAY_REGEX = re.compile(r"MP Replay v.* @\d{4}\.\d{2}\.\d{2} \d{6}\.aoe2record$")
 
     def on_created(self, event):
         if event.is_directory:
             return
-        if event.src_path.endswith(".aoe2record") or event.src_path.endswith(".aoe2mpgame"):
-            logging.info(f"🆕 New Replay Detected: {event.src_path}")
+        filename = os.path.basename(event.src_path)
+        if self.FINAL_REPLAY_REGEX.match(filename):
+            logging.info(f"🆕 Final Replay Detected: {event.src_path}")
             parse_queue.put(event.src_path)
+        else:
+            logging.info(f"⏳ Ignoring temporary file: {event.src_path}")
 
     # If you really want to parse on each modification, uncomment below:
     # def on_modified(self, event):
