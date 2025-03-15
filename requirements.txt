@@ -2,7 +2,6 @@ altgraph==0.17.4
 annotated-types==0.7.0
 anyio==4.8.0
 aocref==2.0.20
-aoe2-betting-client==0.1.0
 asyncpg==0.30.0
 blinker==1.9.0
 click==8.1.8
