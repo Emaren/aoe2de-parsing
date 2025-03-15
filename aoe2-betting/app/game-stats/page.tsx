@@ -21,10 +21,15 @@ interface PlayerStats {
   relics_collected: number;
 }
 
+interface MapData {
+  name: string;
+  size: string;
+}
+
 interface GameStats {
   id: number;
   game_version: string;
-  map: any; // If you store the map as a JSON object, you can type more specifically
+  map: MapData | string;
   game_type: string;
   duration: number; // stored as total seconds in your DB
   players: PlayerStats[];
@@ -33,13 +38,13 @@ interface GameStats {
 
 // --- Helper to clean up "game_type" string ---
 function cleanGameType(rawType: string): string {
-  // Usually looks like "(<Version.DE: 21>, 'VER 9.4', 63.0, 5, 133431)"
-  // We'll extract 'VER x.x'
+  // Example input: "(<Version.DE: 21>, 'VER 9.4', 63.0, 5, 133431)"
+  // We extract 'VER 9.4'
   const match = rawType.match(/'(VER.*?)'/);
   return match && match[1] ? match[1] : rawType;
 }
 
-// --- Helper to format duration from total seconds to a "X hours Y minutes Z seconds" style
+// --- Helper to format duration from total seconds to "X hours Y minutes Z seconds" style ---
 function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const remainder = totalSeconds % 3600;
@@ -65,21 +70,20 @@ function formatDuration(totalSeconds: number): string {
   }
 }
 
-
-const GameStatsPage = () => {
+const GameStatsPage: React.FC = () => {
   const router = useRouter();
   const [games, setGames] = useState<GameStats[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const fetchGameStats = async () => {
+    const fetchGameStats = async (): Promise<void> => {
       try {
-        // Add a cache-buster so it doesn't stale-cache
+        // Cache-buster to avoid stale responses.
         const response = await fetch(
           `http://localhost:8002/api/game_stats?ts=${Date.now()}`,
           { cache: "no-store" }
         );
-        const data = await response.json();
+        const data = (await response.json()) as GameStats[];
         console.log("🔍 RAW API Response:", data);
 
         if (!Array.isArray(data)) {
@@ -88,21 +92,19 @@ const GameStatsPage = () => {
           return;
         }
 
-        // Convert fields if stored as JSON strings in the DB
-        const formattedGames = data.map((game) => {
-          // Convert 'players' if it's a string
-          const safePlayers =
+        // Convert fields that might be stored as JSON strings.
+        const formattedGames: GameStats[] = data.map((game: GameStats): GameStats => {
+          const safePlayers: PlayerStats[] =
             typeof game.players === "string"
-              ? JSON.parse(game.players)
+              ? (JSON.parse(game.players) as PlayerStats[])
               : game.players;
 
-          // Convert 'map' if it's a JSON string
-          let safeMap = game.map;
+          let safeMap: MapData | string = game.map;
           if (typeof safeMap === "string") {
             try {
-              safeMap = JSON.parse(safeMap);
+              safeMap = JSON.parse(safeMap) as MapData;
             } catch {
-              // fallback: keep as string
+              // Fallback: keep as string.
             }
           }
 
@@ -113,9 +115,9 @@ const GameStatsPage = () => {
           };
         });
 
-        // Filter out games with empty players array
-        const validGames = formattedGames.filter(
-          (g) => g.players && g.players.length > 0
+        // Filter out games with empty players.
+        const validGames: GameStats[] = formattedGames.filter(
+          (g: GameStats) => g.players && g.players.length > 0
         );
         if (validGames.length === 0) {
           console.warn("⚠️ All parsed games have empty player lists.");
@@ -123,11 +125,13 @@ const GameStatsPage = () => {
           return;
         }
 
-        // Sort games by timestamp (newest first)
-        validGames.sort((a, b) => {
-          return new Date(b.timestamp).valueOf() - new Date(a.timestamp).valueOf();
+        // Sort games by timestamp (newest first).
+        // Replace the space with "T" so the string parses as ISO format.
+        validGames.sort((a: GameStats, b: GameStats) => {
+          const dateA = new Date(a.timestamp.replace(" ", "T")).valueOf();
+          const dateB = new Date(b.timestamp.replace(" ", "T")).valueOf();
+          return dateB - dateA;
         });
-
 
         setGames(validGames);
         setLoading(false);
@@ -138,7 +142,7 @@ const GameStatsPage = () => {
     };
 
     fetchGameStats();
-    // Optional: auto-refresh every 3s
+    // Optional: auto-refresh every 3 seconds.
     const interval = setInterval(fetchGameStats, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -155,10 +159,9 @@ const GameStatsPage = () => {
         <p className="text-center text-gray-400">No game stats available.</p>
       ) : (
         <div className="space-y-6">
-          {games.map((game, index) => {
-            // The newest game is index=0 => "Latest Match"
+          {games.map((game: GameStats, index: number) => {
+            // The newest game is index=0 ("Latest Match")
             const isLatest = index === 0;
-
             return (
               <div
                 key={game.id}
@@ -189,7 +192,7 @@ const GameStatsPage = () => {
 
                 <h4 className="text-xl font-semibold mt-4">Players</h4>
                 <div className="mt-2 space-y-2">
-                  {game.players.map((player, idx) => (
+                  {game.players.map((player: PlayerStats, idx: number) => (
                     <div
                       key={idx}
                       className={`p-4 rounded-lg ${
@@ -212,8 +215,7 @@ const GameStatsPage = () => {
                         <strong>Economy Score:</strong> {player.economy_score}
                       </p>
                       <p>
-                        <strong>Technology Score:</strong>{" "}
-                        {player.technology_score}
+                        <strong>Technology Score:</strong> {player.technology_score}
                       </p>
                       <p>
                         <strong>Society Score:</strong> {player.society_score}
@@ -222,24 +224,19 @@ const GameStatsPage = () => {
                         <strong>Units Killed:</strong> {player.units_killed}
                       </p>
                       <p>
-                        <strong>Buildings Destroyed:</strong>{" "}
-                        {player.buildings_destroyed}
+                        <strong>Buildings Destroyed:</strong> {player.buildings_destroyed}
                       </p>
                       <p>
-                        <strong>Resources Gathered:</strong>{" "}
-                        {player.resources_gathered}
+                        <strong>Resources Gathered:</strong> {player.resources_gathered}
                       </p>
                       <p>
-                        <strong>Fastest Castle Age:</strong>{" "}
-                        {player.fastest_castle_age} seconds
+                        <strong>Fastest Castle Age:</strong> {player.fastest_castle_age} seconds
                       </p>
                       <p>
-                        <strong>Fastest Imperial Age:</strong>{" "}
-                        {player.fastest_imperial_age} seconds
+                        <strong>Fastest Imperial Age:</strong> {player.fastest_imperial_age} seconds
                       </p>
                       <p>
-                        <strong>Relics Collected:</strong>{" "}
-                        {player.relics_collected}
+                        <strong>Relics Collected:</strong> {player.relics_collected}
                       </p>
                     </div>
                   ))}

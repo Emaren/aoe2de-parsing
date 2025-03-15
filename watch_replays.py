@@ -136,7 +136,10 @@ worker_thread.start()
 import re
 
 class ReplayEventHandler(FileSystemEventHandler):
-    FINAL_REPLAY_REGEX = re.compile(r"MP Replay v.* @\d{4}\.\d{2}\.\d{2} \d{6}\.aoe2record$")
+    FINAL_REPLAY_REGEX = re.compile(
+    r"MP Replay v.* @\d{4}\.\d{2}\.\d{2} \d{6}(?: \(\d+\))?\.aoe2record$"
+    )
+
 
     def on_created(self, event):
         if event.is_directory:

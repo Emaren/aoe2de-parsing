@@ -1,12 +1,15 @@
 {
   "name": "aoe2-betting",
+  "homepage": "https://Emaren.github.io/aoe2de-parsing",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
+    "dev": "next dev",
+    "build": "next build && next export",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d out"
   },
   "dependencies": {
     "@shadcn/ui": "^0.0.4",
@@ -15,11 +18,13 @@
     "lucide-react": "^0.476.0",
     "next": "15.1.7",
     "next-auth": "^4.24.11",
+    "openid-client": "^6.3.4",
     "passport-steam": "^1.0.18",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "gh-pages": "^5.0.0",
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",

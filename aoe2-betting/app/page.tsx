@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserCircle, UploadCloud, Wallet } from "lucide-react";
+import { UserCircle, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function MainPage() {
@@ -40,7 +40,7 @@ export default function MainPage() {
 
       // Prevent duplicate entries
       const betExists = storedBets.some(
-        (bet) => bet.challenger === challenger && bet.betAmount === betAmount
+        (bet: any) => bet.challenger === challenger && bet.betAmount === betAmount
       );
 
       if (!betExists) {
@@ -67,12 +67,12 @@ export default function MainPage() {
       setBetStatus("Waiting For Battle To Start");
     }, 5000);
 
-    // Simulate detecting the game start (replace this with actual game file monitoring logic)
+    // Simulate detecting the game start (replace with actual logic)
     setTimeout(() => {
       setBetStatus("Battle Underway!");
     }, 10000);
 
-    // Simulate detecting battle finish (replace with real in-game detection)
+    // Simulate detecting battle finish (replace with real logic)
     setTimeout(() => {
       setBetStatus("Battle Finished! Processing Win.");
     }, 20000);
@@ -139,13 +139,14 @@ export default function MainPage() {
 
       {/* Main Content */}
       <div className="flex flex-col flex-1 items-center justify-center px-6 w-full max-w-2xl mx-auto space-y-14">
-        
         {/* Glowing AoE2 Icon */}
         <motion.div
           animate={{
             opacity: betPending ? 1 : 0.8,
             scale: betPending ? 1.1 : 1,
-            boxShadow: betPending ? "0px 0px 50px rgba(59,130,246,0.9)" : "none",
+            boxShadow: betPending
+              ? "0px 0px 50px rgba(59,130,246,0.9)"
+              : "none",
           }}
           transition={{ duration: 0.5, repeat: betPending ? Infinity : 0, repeatType: "reverse" }}
           className="relative flex items-center justify-center w-64 h-64 md:w-72 md:h-72 bg-blue-700 rounded-full shadow-2xl text-5xl md:text-6xl font-bold"
@@ -162,17 +163,15 @@ export default function MainPage() {
         <Card className="w-full max-w-lg bg-gray-800 text-white shadow-xl rounded-lg">
           <CardContent className="p-8 flex flex-col items-center space-y-6">
             {betPending ? (
-              <>
-                <div className="text-2xl font-semibold text-center">
-                  <span className="text-blue-400">{challenger}</span> has challenged you!
-                </div>
-              </>
+              <div className="text-2xl font-semibold text-center">
+                <span className="text-blue-400">{challenger}</span> has challenged you!
+              </div>
             ) : (
               <>
-                <p className="text-gray-400 text-lg">Enter Opponent's Name:</p>
+                <p className="text-gray-400 text-lg">Enter Opponent&apos;s Name:</p>
                 <Input
                   className="text-black w-full px-4 py-3 text-lg rounded-md"
-                  placeholder="Opponent's Steam Name"
+                  placeholder="Opponent&apos;s Steam Name"
                   value={opponent}
                   onChange={(e) => setOpponent(e.target.value)}
                 />
@@ -195,7 +194,7 @@ export default function MainPage() {
           </motion.div>
         )}
 
-        {/* Accept & Decline Buttons BELOW the Challenge Box */}
+        {/* Accept & Decline Buttons */}
         <AnimatePresence>
           {betPending && showButtons && (
             <motion.div
@@ -205,10 +204,10 @@ export default function MainPage() {
               exit={{ opacity: 0 }}
               transition={{ duration: 2 }}
             >
-              <Button className="bg-green-600 hover:bg-green-700 px-6 py-3 flex-grow w-2/3" onClick={handleAccept}>
+              <Button className="bg-green-600 hover:bg-green-700 px-6 py-3 flex-grow" onClick={handleAccept}>
                 Accept
               </Button>
-              <Button className="bg-red-600 hover:bg-red-700 px-6 py-3 flex-grow w-2/3" onClick={handleDecline}>
+              <Button className="bg-red-600 hover:bg-red-700 px-6 py-3 flex-grow" onClick={handleDecline}>
                 Decline
               </Button>
             </motion.div>
@@ -218,3 +217,5 @@ export default function MainPage() {
     </div>
   );
 }
+
+
