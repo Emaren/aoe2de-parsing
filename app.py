@@ -3,6 +3,8 @@ import io
 import json
 import pathlib
 import logging
+import re
+from datetime import datetime
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -23,10 +25,10 @@ os.makedirs(os.path.join(BASE_DIR, 'instance'), exist_ok=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'game_stats.db')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    "pool_size": 10,       # default is often 5
-    "max_overflow": 20,    # allow extra connections beyond pool_size
-    "pool_timeout": 30,    # wait up to 30s for a connection before giving up
-    "pool_recycle": 1800   # recycle connections after 30 minutes
+    "pool_size": 10,
+    "max_overflow": 20,
+    "pool_timeout": 30,
+    "pool_recycle": 1800
 }
 
 db = SQLAlchemy(app)
@@ -43,7 +45,7 @@ class GameStats(db.Model):
     duration = db.Column(db.Integer)
     winner = db.Column(db.String(100))
     players = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, nullable=False)  # ✅ Change to required field
+    timestamp = db.Column(db.DateTime, nullable=False)
 
 
 # Ensure tables exist on startup
@@ -55,10 +57,6 @@ with app.app_context():
 # ------------------------------------------------------------------------------
 @app.errorhandler(Exception)
 def handle_exception(e):
-    """
-    Catch any unhandled exception, return JSON with 500 status,
-    ensuring we still set the CORS header for Safari or other browsers.
-    """
     logging.error(f"❌ Uncaught Exception: {e}", exc_info=True)
     response = jsonify({"error": str(e)})
     response.status_code = 500
@@ -66,30 +64,24 @@ def handle_exception(e):
     return response
 
 # ------------------------------------------------------------------------------
-# Replay parsing logic (using mgz.header + mgz.summary)
+# Helper Function: Extract Timestamp from Filename
 # ------------------------------------------------------------------------------
-import re
-from datetime import datetime
-
 def extract_timestamp_from_filename(filename):
-    """
-    Extract timestamp from an AoE2 replay filename.
-    Example: "MP Replay v101.103.2359.0 @2025.03.14 202116 (1).aoe2record"
-    """
     match = re.search(r"@(\d{4}\.\d{2}\.\d{2}) (\d{6})", filename)
     if match:
         date_part, time_part = match.groups()
-        formatted_date = date_part.replace(".", "-")  # Convert to YYYY-MM-DD
-        formatted_time = f"{time_part[:2]}:{time_part[2:4]}:{time_part[4:]}"  # Convert HHMMSS to HH:MM:SS
+        formatted_date = date_part.replace(".", "-")
+        formatted_time = f"{time_part[:2]}:{time_part[2:4]}:{time_part[4:]}"
         try:
             return datetime.strptime(f"{formatted_date} {formatted_time}", "%Y-%m-%d %H:%M:%S")
         except ValueError:
-            return datetime.utcnow()  # Fallback if parsing fails
-    return datetime.utcnow()  # Fallback if no timestamp found
+            return datetime.utcnow()
+    return datetime.utcnow()
 
-
+# ------------------------------------------------------------------------------
+# Replay Parsing Function
+# ------------------------------------------------------------------------------
 def parse_replay(replay_path):
-    """Parse a .aoe2record file using mgz.header + mgz.summary."""
     if not os.path.exists(replay_path):
         logging.error(f"❌ Replay not found: {replay_path}")
         return None
@@ -102,8 +94,6 @@ def parse_replay(replay_path):
 
             duration_seconds = int(match_summary.get_duration() / 1000)
             game_type_str = str(match_summary.get_settings().get("type", "Unknown"))
-
-            # ✅ Extract timestamp from filename
             match_start_time = extract_timestamp_from_filename(os.path.basename(replay_path))
 
             stats = {
@@ -117,7 +107,7 @@ def parse_replay(replay_path):
                 "duration": duration_seconds,
                 "players": [],
                 "winner": "Unknown",
-                "timestamp": match_start_time  # ✅ Correct match start time
+                "timestamp": match_start_time
             }
 
             for p in match_summary.get_players():
@@ -143,14 +133,11 @@ def parse_replay(replay_path):
         logging.error(f"❌ Error parsing replay: {e}", exc_info=True)
         return None
 
-
-
 # ------------------------------------------------------------------------------
 # POST /api/parse_replay
 # ------------------------------------------------------------------------------
 @app.route('/api/parse_replay', methods=['POST'])
 def parse_new_replay():
-    """Receive a JSON with "replay_file" path. Parse & store stats in DB."""
     data = request.json
     replay_path = data.get("replay_file")
     if not replay_path:
@@ -175,7 +162,7 @@ def parse_new_replay():
         duration=parsed_data["duration"],
         winner=parsed_data["winner"],
         players=json.dumps(parsed_data["players"]),
-        timestamp=parsed_data["timestamp"],  # ✅ Use actual match timestamp
+        timestamp=parsed_data["timestamp"],
     )
 
     db.session.add(new_game)
@@ -188,17 +175,14 @@ def parse_new_replay():
 
     return jsonify({"message": "Replay parsed and stored successfully!"}), 200
 
-
 # ------------------------------------------------------------------------------
 # GET /api/game_stats
 # ------------------------------------------------------------------------------
 @app.route('/api/game_stats', methods=['GET'])
 def game_stats():
-    """Return all stored game stats, newest first."""
     all_games = GameStats.query.order_by(GameStats.timestamp.desc()).all()
     results = []
     for game in all_games:
-        # Convert map & players from JSON
         try:
             map_data = json.loads(game.map)
         except:
@@ -223,8 +207,16 @@ def game_stats():
     return jsonify(results)
 
 # ------------------------------------------------------------------------------
+# Default Route to Avoid 404 Errors
+# ------------------------------------------------------------------------------
+@app.route("/")
+def home():
+    return jsonify({"message": "AoE2 Parsing API is running!"})
+
+# ------------------------------------------------------------------------------
 # Run the Flask app
 # ------------------------------------------------------------------------------
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    app.run(debug=True, host="0.0.0.0", port=8002)
+    port = int(os.getenv("PORT", 8002))  # ✅ Dynamic port for Render
+    app.run(host="0.0.0.0", port=port)
