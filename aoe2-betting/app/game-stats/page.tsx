@@ -78,11 +78,13 @@ const GameStatsPage: React.FC = () => {
   useEffect(() => {
     const fetchGameStats = async (): Promise<void> => {
       try {
-        // Cache-buster to avoid stale responses.
+        const API_BASE_URL = "https://aoe2de-parsing.onrender.com"; // Replace with your Render URL
+
         const response = await fetch(
-          `http://localhost:8002/api/game_stats?ts=${Date.now()}`,
+          `${API_BASE_URL}/api/game_stats?ts=${Date.now()}`,
           { cache: "no-store" }
         );
+
         const data = (await response.json()) as GameStats[];
         console.log("🔍 RAW API Response:", data);
 

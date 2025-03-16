@@ -15,7 +15,7 @@ export default function MainPage() {
   const [challenger, setChallenger] = useState("");
   const [opponent, setOpponent] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [pendingBets, setPendingBets] = useState([]);
+  const [pendingBets, setPendingBets] = useState<{ challenger: string; betAmount: number; inactive: boolean }[]>([]);
   const [betStatus, setBetStatus] = useState(""); // Tracks the animated status text
   const [showButtons, setShowButtons] = useState(true); // Controls button visibility
 
@@ -40,8 +40,9 @@ export default function MainPage() {
 
       // Prevent duplicate entries
       const betExists = storedBets.some(
-        (bet: any) => bet.challenger === challenger && bet.betAmount === betAmount
-      );
+        (bet: { challenger: string; betAmount: number }) =>
+          bet.challenger === challenger && bet.betAmount === betAmount
+      );      
 
       if (!betExists) {
         const updatedBets = [...storedBets, newBet];
