@@ -10,9 +10,9 @@ const nextConfig = {
     unoptimized: true, // Required when using next/image with static exports
   },
   env: {
-    BACKEND_API: "http://192.168.219.28:8000",
-    REPLAY_API: "http://192.168.219.28:5001",
-  },
+    BACKEND_API: "https://your-flask-app.onrender.com",
+    REPLAY_API: "https://your-flask-app.onrender.com",
+  },  
 };
 
 module.exports = withPWA(nextConfig);
